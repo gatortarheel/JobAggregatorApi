@@ -7,6 +7,7 @@ using Microsoft.EntityFrameworkCore;
 using JobAggregatorApi.Services.Scoring;
 using JobAggregatorApi.Services.Jooble;
 using JobAggregatorApi.Components;
+using Microsoft.Data.Sqlite;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -62,6 +63,13 @@ app.MapControllers();
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<JobDbContext>();
+    var connectionString = builder.Configuration.GetConnectionString("Default");
+    var dbPath = new SqliteConnectionStringBuilder(connectionString).DataSource;
+    var dbDir = Path.GetDirectoryName(dbPath);
+    if (!string.IsNullOrEmpty(dbDir))
+    {
+        Directory.CreateDirectory(dbDir);
+    }
     db.Database.Migrate();
 }
 
