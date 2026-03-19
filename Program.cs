@@ -38,7 +38,6 @@ builder.Services.AddDbContext<JobDbContext>(options =>
 builder.Services.AddScoped<JobStorageService>();
 
 builder.Services.AddHttpClient<JobScoringService>();
-builder.Services.AddScoped<JobScoringService>();
 
 var app = builder.Build();
 
@@ -62,15 +61,32 @@ app.MapControllers();
 
 using (var scope = app.Services.CreateScope())
 {
-    var db = scope.ServiceProvider.GetRequiredService<JobDbContext>();
-    var connectionString = builder.Configuration.GetConnectionString("Default");
-    var dbPath = new SqliteConnectionStringBuilder(connectionString).DataSource;
-    var dbDir = Path.GetDirectoryName(dbPath);
-    if (!string.IsNullOrEmpty(dbDir))
+    var services = scope.ServiceProvider;
+    try
     {
-        Directory.CreateDirectory(dbDir);
+        // 1. Get the connection string (Matching the YAML name 'DefaultConnection')
+        var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
+                       ?? "Data Source=jobs.db";
+
+        // 2. Ensure the directory exists BEFORE EF Core touches it
+        var sb = new SqliteConnectionStringBuilder(connectionString);
+        var dbPath = sb.DataSource;
+        var dbDir = Path.GetDirectoryName(dbPath);
+
+        if (!string.IsNullOrEmpty(dbDir) && !Directory.Exists(dbDir))
+        {
+            Directory.CreateDirectory(dbDir);
+        }
+
+        // 3. Apply migrations (or use db.Database.EnsureCreated() if not using migrations)
+        var db = services.GetRequiredService<JobDbContext>();
+        db.Database.Migrate();
     }
-    db.Database.Migrate();
+    catch (Exception ex)
+    {
+        var logger = services.GetRequiredService<ILogger<Program>>();
+        logger.LogError(ex, "An error occurred while initializing the database.");
+    }
 }
 
 app.Run();
