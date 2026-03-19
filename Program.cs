@@ -11,38 +11,32 @@ using Microsoft.Data.Sqlite;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Standard Services
 builder.Services.AddControllers();
 builder.Services.AddOpenApi();
+builder.Services.AddRazorComponents().AddInteractiveServerComponents();
 
-// Register job sources
+// Job Sources & Aggregator
 builder.Services.AddHttpClient<AdzunaJobSource>();
 builder.Services.AddSingleton<IJobSource, AdzunaJobSource>();
-
-builder.Services.AddRazorComponents()
-    .AddInteractiveServerComponents();
-
 builder.Services.AddHttpClient<UsaJobsSource>();
 builder.Services.AddSingleton<IJobSource, UsaJobsSource>();
-
-// Register aggregator
-builder.Services.AddSingleton<JobAggregatorService>();
-
 builder.Services.AddHttpClient<JoobleJobSource>();
 builder.Services.AddSingleton<IJobSource, JoobleJobSource>();
+builder.Services.AddSingleton<JobAggregatorService>();
 
-// Database
-// Change "Default" to "DefaultConnection"
+// Database Configuration
+// This looks for "ConnectionStrings:DefaultConnection" in your Azure App Settings
+var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
+                       ?? "Data Source=jobs.db";
+
 builder.Services.AddDbContext<JobDbContext>(options =>
-    options.UseSqlite(builder.Configuration.GetConnectionString("DefaultConnection")
-        ?? "Data Source=jobs.db"));
-// Storage
-builder.Services.AddScoped<JobStorageService>();
+    options.UseSqlite(connectionString));
 
+builder.Services.AddScoped<JobStorageService>();
 builder.Services.AddHttpClient<JobScoringService>();
 
 var app = builder.Build();
-
-
 
 if (app.Environment.IsDevelopment())
 {
@@ -50,26 +44,21 @@ if (app.Environment.IsDevelopment())
     app.MapScalarApiReference();
 }
 
-//app.UseHttpsRedirection();
+// NOTE: app.UseHttpsRedirection() is omitted here as Azure handles SSL termination
 app.UseAuthorization();
 app.UseStaticFiles();
 app.UseAntiforgery();
 
-app.MapRazorComponents<App>()
-    .AddInteractiveServerRenderMode();
-
+app.MapRazorComponents<App>().AddInteractiveServerRenderMode();
 app.MapControllers();
 
+// INITIALIZATION BLOCK
 using (var scope = app.Services.CreateScope())
 {
     var services = scope.ServiceProvider;
     try
     {
-        // 1. Get the connection string (Matching the YAML name 'DefaultConnection')
-        var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
-                       ?? "Data Source=jobs.db";
-
-        // 2. Ensure the directory exists BEFORE EF Core touches it
+        // 1. Ensure the /home directory exists for the SQLite file
         var sb = new SqliteConnectionStringBuilder(connectionString);
         var dbPath = sb.DataSource;
         var dbDir = Path.GetDirectoryName(dbPath);
@@ -79,9 +68,12 @@ using (var scope = app.Services.CreateScope())
             Directory.CreateDirectory(dbDir);
         }
 
-        // 3. Apply migrations (or use db.Database.EnsureCreated() if not using migrations)
+        // 2. Use EnsureCreated instead of Migrate for the POC
+        // This builds the DB from your C# classes since Migrations folder is missing
         var db = services.GetRequiredService<JobDbContext>();
         db.Database.EnsureCreated();
+
+        Console.WriteLine($"Database initialized successfully at: {dbPath}");
     }
     catch (Exception ex)
     {
