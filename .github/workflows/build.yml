@@ -18,9 +18,13 @@ jobs:
       - name: Publish
         run: dotnet publish -c Release -o ./publish
 
-      - name: Deploy to Azure
-        uses: azure/webapps-deploy@v3
+      - name: Login to Azure
+        uses: azure/login@v2
         with:
-          app-name: job-aggregator-app
-          publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
-          package: ./publish
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Deploy to Azure
+        run: |
+          cd publish
+          zip -r ../deploy.zip .
+          az webapp deploy --name job-aggregator-app --resource-group job-aggregator-rg --src-path ../deploy.zip --type zip

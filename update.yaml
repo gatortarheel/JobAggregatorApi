@@ -1,0 +1,34 @@
+properties:
+  template:
+    volumes:
+      - name: jobdata-volume
+        storageName: jobdatastorage
+        storageType: AzureFile
+    containers:
+      - name: job-aggregator-app
+        image: jobaggregatoracr.azurecr.io/job-aggregator:v2
+        resources:
+          cpu: 0.5
+          memory: 1Gi
+        volumeMounts:
+          - volumeName: jobdata-volume
+            mountPath: /data
+        env:
+          - name: ASPNETCORE_URLS
+            value: "http://+:8080"
+          - name: ConnectionStrings__Default
+            value: "Data Source=/data/jobs.db"
+          - name: Adzuna__AppId
+            secretRef: adzuna-app-id
+          - name: Adzuna__AppKey
+            secretRef: adzuna-app-key
+          - name: UsaJobs__ApiKey
+            secretRef: usajobs-api-key
+          - name: UsaJobs__Email
+            secretRef: usajobs-email
+          - name: Jooble__ApiKey
+            secretRef: jooble-api-key
+          - name: Anthropic__ApiKey
+            secretRef: anthropic-api-key
+          - name: Admin__Password
+            secretRef: admin-password
