@@ -31,8 +31,9 @@ builder.Services.AddHttpClient<JoobleJobSource>();
 builder.Services.AddSingleton<IJobSource, JoobleJobSource>();
 
 // Database
+// Change "Default" to "DefaultConnection"
 builder.Services.AddDbContext<JobDbContext>(options =>
-    options.UseSqlite(builder.Configuration.GetConnectionString("Default")
+    options.UseSqlite(builder.Configuration.GetConnectionString("DefaultConnection")
         ?? "Data Source=jobs.db"));
 // Storage
 builder.Services.AddScoped<JobStorageService>();
