@@ -50,7 +50,7 @@ if (app.Environment.IsDevelopment())
     app.MapScalarApiReference();
 }
 
-app.UseHttpsRedirection();
+//app.UseHttpsRedirection();
 app.UseAuthorization();
 app.UseStaticFiles();
 app.UseAntiforgery();
@@ -81,7 +81,7 @@ using (var scope = app.Services.CreateScope())
 
         // 3. Apply migrations (or use db.Database.EnsureCreated() if not using migrations)
         var db = services.GetRequiredService<JobDbContext>();
-        db.Database.Migrate();
+        db.Database.EnsureCreated();
     }
     catch (Exception ex)
     {
