@@ -1,0 +1,8 @@
+### Search for .NET jobs in Richmond
+GET https://localhost:{port}/api/jobs/search?keywords=.net+developer&location=Richmond,+VA&radiusMiles=30
+
+### Search for C# jobs, wider radius
+GET https://localhost:{port}/api/jobs/search?keywords=c%23+developer&location=Richmond,+VA&radiusMiles=50
+
+### Search for senior engineering roles
+GET https://localhost:{port}/api/jobs/search?keywords=senior+software+engineer&location=Richmond,+VA&radiusMiles=25

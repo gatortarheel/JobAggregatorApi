@@ -1,0 +1,688 @@
+@page "/jobs"
+@using JobAggregatorApi.Data
+@using JobAggregatorApi.Models
+@using Microsoft.EntityFrameworkCore
+@inject JobDbContext Db
+@rendermode InteractiveServer
+
+<style>
+    @@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+    .job-dash {
+        font-family: 'DM Sans', sans-serif;
+        background: #0f1117;
+        color: #e2e4e9;
+        min-height: 100vh;
+        padding: 32px 40px;
+    }
+
+    .job-dash-header {
+        display: flex;
+        align-items: baseline;
+        gap: 16px;
+        margin-bottom: 32px;
+    }
+
+    .job-dash-header h1 {
+        font-size: 28px;
+        font-weight: 700;
+        color: #f8f9fa;
+        letter-spacing: -0.5px;
+        margin: 0;
+    }
+
+    .job-dash-header .subtitle {
+        font-size: 14px;
+        color: #6b7280;
+        font-weight: 400;
+    }
+
+    .stats-bar {
+        display: flex;
+        gap: 24px;
+        margin-bottom: 28px;
+    }
+
+    .stat-card {
+        background: #1a1d27;
+        border: 1px solid #2a2d3a;
+        border-radius: 10px;
+        padding: 16px 24px;
+        min-width: 140px;
+    }
+
+    .stat-card .stat-value {
+        font-size: 28px;
+        font-weight: 700;
+        color: #f8f9fa;
+        font-family: 'JetBrains Mono', monospace;
+    }
+
+    .stat-card .stat-label {
+        font-size: 12px;
+        color: #6b7280;
+        text-transform: uppercase;
+        letter-spacing: 0.8px;
+        margin-top: 2px;
+    }
+
+    .stat-card.highlight {
+        border-color: #3b82f6;
+        background: linear-gradient(135deg, #1a1d27 0%, #1e2235 100%);
+    }
+
+    .filters-row {
+        display: flex;
+        gap: 10px;
+        margin-bottom: 24px;
+        align-items: center;
+        flex-wrap: wrap;
+    }
+
+    .filter-input {
+        background: #1a1d27;
+        border: 1px solid #2a2d3a;
+        color: #e2e4e9;
+        padding: 10px 14px;
+        border-radius: 8px;
+        font-size: 13px;
+        font-family: 'DM Sans', sans-serif;
+        outline: none;
+        transition: border-color 0.2s;
+    }
+
+    .filter-input:focus {
+        border-color: #3b82f6;
+    }
+
+    .filter-input::placeholder {
+        color: #4b5563;
+    }
+
+    .search-input {
+        width: 240px;
+    }
+
+    .btn-search {
+        background: #3b82f6;
+        color: white;
+        border: none;
+        padding: 10px 20px;
+        border-radius: 8px;
+        font-size: 13px;
+        font-weight: 600;
+        font-family: 'DM Sans', sans-serif;
+        cursor: pointer;
+        transition: background 0.2s;
+    }
+
+    .btn-search:hover {
+        background: #2563eb;
+    }
+
+    .result-count {
+        font-size: 13px;
+        color: #6b7280;
+        margin-left: 4px;
+    }
+
+    .job-table {
+        width: 100%;
+        border-collapse: separate;
+        border-spacing: 0 6px;
+    }
+
+    .job-table thead th {
+        font-size: 11px;
+        font-weight: 600;
+        color: #6b7280;
+        text-transform: uppercase;
+        letter-spacing: 0.8px;
+        padding: 8px 14px;
+        text-align: left;
+        border: none;
+        cursor: pointer;
+        user-select: none;
+        transition: color 0.15s;
+    }
+
+    .job-table thead th:hover {
+        color: #93c5fd;
+    }
+
+    .sort-arrow {
+        font-size: 10px;
+        margin-left: 4px;
+        color: #3b82f6;
+    }
+
+    .job-table tbody tr {
+        background: #1a1d27;
+        transition: background 0.15s, transform 0.15s;
+        border-radius: 8px;
+    }
+
+    .job-table tbody tr:hover {
+        background: #1f2333;
+        transform: translateY(-1px);
+    }
+
+    .job-table tbody td {
+        padding: 14px 14px;
+        font-size: 13px;
+        border-top: 1px solid #2a2d3a;
+        border-bottom: 1px solid #2a2d3a;
+    }
+
+    .job-table tbody td:first-child {
+        border-left: 1px solid #2a2d3a;
+        border-radius: 8px 0 0 8px;
+    }
+
+    .job-table tbody td:last-child {
+        border-right: 1px solid #2a2d3a;
+        border-radius: 0 8px 8px 0;
+    }
+
+    .score-badge {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 32px;
+        height: 32px;
+        border-radius: 8px;
+        font-weight: 700;
+        font-size: 14px;
+        font-family: 'JetBrains Mono', monospace;
+    }
+
+    .score-5 {
+        background: #065f46;
+        color: #6ee7b7;
+    }
+
+    .score-4 {
+        background: #1e3a5f;
+        color: #7dd3fc;
+    }
+
+    .score-3 {
+        background: #713f12;
+        color: #fcd34d;
+    }
+
+    .score-2 {
+        background: #7c2d12;
+        color: #fdba74;
+    }
+
+    .score-1 {
+        background: #7f1d1d;
+        color: #fca5a5;
+    }
+
+    .score-na {
+        background: #1f2937;
+        color: #4b5563;
+    }
+
+    .job-title-link {
+        color: #93c5fd;
+        text-decoration: none;
+        font-weight: 500;
+        transition: color 0.15s;
+    }
+
+    .job-title-link:hover {
+        color: #bfdbfe;
+        text-decoration: underline;
+    }
+
+    .desc-box {
+        margin-top: 8px;
+        background: #141620;
+        border: 1px solid #2a2d3a;
+        border-radius: 6px;
+        padding: 10px 12px;
+        font-size: 12px;
+        line-height: 1.6;
+        color: #6b7280;
+        max-height: 80px;
+        overflow-y: auto;
+        width: 500px;
+    }
+
+    .desc-box::-webkit-scrollbar {
+        width: 5px;
+    }
+
+    .desc-box::-webkit-scrollbar-thumb {
+        background: #2a2d3a;
+        border-radius: 3px;
+    }
+
+    .source-tag {
+        display: inline-block;
+        padding: 3px 10px;
+        border-radius: 4px;
+        font-size: 11px;
+        font-weight: 600;
+        letter-spacing: 0.3px;
+    }
+
+    .source-adzuna {
+        background: #172554;
+        color: #60a5fa;
+    }
+
+    .source-usajobs {
+        background: #422006;
+        color: #fbbf24;
+    }
+
+    .source-jooble {
+        background: #2e1065;
+        color: #a78bfa;
+    }
+
+    .status-select {
+        background: #0f1117;
+        border: 1px solid #2a2d3a;
+        color: #e2e4e9;
+        padding: 6px 10px;
+        border-radius: 6px;
+        font-size: 12px;
+        font-family: 'DM Sans', sans-serif;
+        cursor: pointer;
+        outline: none;
+        transition: border-color 0.2s;
+    }
+
+    .status-select:focus {
+        border-color: #3b82f6;
+    }
+
+    .salary-text {
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 12px;
+        color: #9ca3af;
+    }
+
+    .rationale-text {
+        font-size: 12px;
+        color: #6b7280;
+        line-height: 1.5;
+        max-width: 320px;
+    }
+
+    .location-text {
+        white-space: nowrap;
+        color: #9ca3af;
+    }
+
+    .company-text {
+        color: #d1d5db;
+        font-weight: 500;
+    }
+
+    .empty-state {
+        text-align: center;
+        padding: 80px 0;
+        color: #4b5563;
+    }
+
+    .empty-state h2 {
+        font-size: 18px;
+        color: #6b7280;
+        margin-bottom: 8px;
+    }
+
+    .loading-state {
+        text-align: center;
+        padding: 80px 0;
+        color: #6b7280;
+        font-size: 14px;
+    }
+
+    .pager {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 12px;
+        margin-top: 24px;
+    }
+
+    .pager-btn {
+        background: #1a1d27;
+        border: 1px solid #2a2d3a;
+        color: #e2e4e9;
+        padding: 8px 16px;
+        border-radius: 6px;
+        font-size: 13px;
+        font-family: 'DM Sans', sans-serif;
+        cursor: pointer;
+        transition: background 0.15s, border-color 0.15s;
+    }
+
+    .pager-btn:hover:not(:disabled) {
+        background: #1f2333;
+        border-color: #3b82f6;
+    }
+
+    .pager-btn:disabled {
+        opacity: 0.3;
+        cursor: not-allowed;
+    }
+
+    .pager-info {
+        font-size: 13px;
+        color: #6b7280;
+        font-family: 'JetBrains Mono', monospace;
+    }
+</style>
+
+<div class="job-dash">
+    <div class="job-dash-header">
+        <h1>Job Aggregator</h1>
+        <span class="subtitle">Senior .NET Engineer &mdash; Richmond, VA</span>
+    </div>
+
+    <div class="stats-bar">
+        <div class="stat-card">
+            <div class="stat-value">@totalJobs</div>
+            <div class="stat-label">Total Jobs</div>
+        </div>
+        <div class="stat-card highlight">
+            <div class="stat-value">@toReview</div>
+            <div class="stat-label">To Review</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value">@appliedCount</div>
+            <div class="stat-label">Applied</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value">@avgScore</div>
+            <div class="stat-label">Avg Score</div>
+        </div>
+    </div>
+
+    <div class="filters-row">
+        <input type="text" placeholder="Search title or company..." class="filter-input search-input"
+               @bind="searchKeyword" @bind:event="oninput" />
+
+        <select class="filter-input" @bind="filterStatus">
+            <option value="">All Statuses</option>
+            <option value="To Be Reviewed">To Be Reviewed</option>
+            <option value="Skipped">Skipped</option>
+            <option value="Applied">Applied</option>
+            <option value="Not Interested">Not Interested</option>
+        </select>
+
+        <select class="filter-input" @bind="filterMinScore">
+            <option value="0">Any Score</option>
+            <option value="3">3+</option>
+            <option value="4">4+</option>
+            <option value="5">5 Only</option>
+        </select>
+
+        <button class="btn-search" @onclick="ApplyFilters">Search</button>
+        <span class="result-count">@filteredTotal results</span>
+    </div>
+
+    @if (loading)
+    {
+        <div class="loading-state">Loading jobs...</div>
+    }
+    else if (!jobs.Any())
+    {
+        <div class="empty-state">
+            <h2>No jobs found</h2>
+            <p>Run a profile search with save=true to populate data.</p>
+        </div>
+    }
+    else
+    {
+        <table class="job-table">
+            <thead>
+                <tr>
+                    <th @onclick='() => SetSort("score")'>
+                        Score @SortArrow("score")
+                    </th>
+                    <th @onclick='() => SetSort("title")'>
+                        Title @SortArrow("title")
+                    </th>
+                    <th @onclick='() => SetSort("company")'>
+                        Company @SortArrow("company")
+                    </th>
+                    <th @onclick='() => SetSort("location")'>
+                        Location @SortArrow("location")
+                    </th>
+                    <th @onclick='() => SetSort("salary")'>
+                        Salary @SortArrow("salary")
+                    </th>
+                    <th @onclick='() => SetSort("source")'>
+                        Source @SortArrow("source")
+                    </th>
+                    <th>Status</th>
+                    <th @onclick='() => SetSort("date")'>
+                        Posted @SortArrow("date")
+                    </th>
+                    <th>Rationale</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var job in jobs)
+                {
+                    <tr>
+                        <td>
+                            @if (job.MatchScore.HasValue)
+                            {
+                                <span class="score-badge score-@job.MatchScore">@job.MatchScore</span>
+                            }
+                            else
+                            {
+                                <span class="score-badge score-na">-</span>
+                            }
+                        </td>
+                        <td>
+                            <a href="@job.Url" target="_blank" rel="noopener" class="job-title-link">
+                                @job.Title
+                            </a>
+                            <div class="desc-box">@job.Description</div>
+                        </td>
+                        <td class="company-text">@job.Company</td>
+                        <td class="location-text">@job.Location</td>
+                        <td class="salary-text">
+                            @if (job.SalaryMin.HasValue)
+                            {
+                                @($"${job.SalaryMin:N0} - ${job.SalaryMax:N0}")
+                            }
+                        </td>
+                        <td>
+                            <span class="source-tag source-@job.Source.ToLower()">@job.Source</span>
+                        </td>
+                        <td>
+                            <select class="status-select" value="@job.Status"
+                                    @onchange="(e) => UpdateStatus(job, e.Value?.ToString())">
+                                <option value="">--</option>
+                                <option value="To Be Reviewed">To Be Reviewed</option>
+                                <option value="Skipped">Skipped</option>
+                                <option value="Applied">Applied</option>
+                                <option value="Not Interested">Not Interested</option>
+                            </select>
+                        </td>
+                        <td class="salary-text">@job.PostedDate.ToString("MM/dd/yyyy")</td>
+                        <td class="rationale-text">@job.MatchRationale</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+
+        <div class="pager">
+            <button class="pager-btn" disabled="@(currentPage <= 1)" @onclick="PrevPage">
+                &larr; Previous
+            </button>
+            <span class="pager-info">
+                Page @currentPage of @totalPages
+            </span>
+            <button class="pager-btn" disabled="@(currentPage >= totalPages)" @onclick="NextPage">
+                Next &rarr;
+            </button>
+        </div>
+    }
+</div>
+
+@code {
+    private List<SavedJob> jobs = new();
+    private string searchKeyword = "";
+    private string filterStatus = "";
+    private int filterMinScore = 0;
+    private bool loading = true;
+
+    private int totalJobs;
+    private int toReview;
+    private int appliedCount;
+    private string avgScore = "-";
+
+    private string sortColumn = "score";
+    private bool sortDescending = true;
+
+    private int currentPage = 1;
+    private int pageSize = 25;
+    private int filteredTotal;
+    private int totalPages => (int)Math.Ceiling((double)filteredTotal / pageSize);
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadStats();
+        await LoadJobs();
+    }
+
+    private async Task LoadStats()
+    {
+        totalJobs = await Db.SavedJobs.CountAsync();
+        toReview = await Db.SavedJobs.CountAsync(j => j.Status == "To Be Reviewed");
+        appliedCount = await Db.SavedJobs.CountAsync(j => j.Status == "Applied");
+
+        var scored = await Db.SavedJobs
+            .Where(j => j.MatchScore != null)
+            .Select(j => j.MatchScore!.Value)
+            .ToListAsync();
+
+        avgScore = scored.Any() ? scored.Average().ToString("F1") : "-";
+    }
+
+    private async Task LoadJobs()
+    {
+        loading = true;
+
+        var query = Db.SavedJobs.AsQueryable();
+
+        if (!string.IsNullOrWhiteSpace(searchKeyword))
+        {
+            var lower = searchKeyword.ToLower();
+            query = query.Where(j =>
+                j.Title.ToLower().Contains(lower) ||
+                j.Company.ToLower().Contains(lower));
+        }
+
+        if (!string.IsNullOrWhiteSpace(filterStatus))
+        {
+            query = query.Where(j => j.Status == filterStatus);
+        }
+
+        if (filterMinScore > 0)
+        {
+            query = query.Where(j => j.MatchScore >= filterMinScore);
+        }
+
+        filteredTotal = await query.CountAsync();
+
+        query = sortColumn switch
+        {
+            "score" => sortDescending
+                ? query.OrderByDescending(j => j.MatchScore)
+                : query.OrderBy(j => j.MatchScore),
+            "title" => sortDescending
+                ? query.OrderByDescending(j => j.Title)
+                : query.OrderBy(j => j.Title),
+            "company" => sortDescending
+                ? query.OrderByDescending(j => j.Company)
+                : query.OrderBy(j => j.Company),
+            "location" => sortDescending
+                ? query.OrderByDescending(j => j.Location)
+                : query.OrderBy(j => j.Location),
+            "salary" => sortDescending
+                ? query.OrderByDescending(j => j.SalaryMin)
+                : query.OrderBy(j => j.SalaryMin),
+            "source" => sortDescending
+                ? query.OrderByDescending(j => j.Source)
+                : query.OrderBy(j => j.Source),
+            "date" => sortDescending
+                ? query.OrderByDescending(j => j.PostedDate)
+                : query.OrderBy(j => j.PostedDate),
+            _ => query.OrderByDescending(j => j.MatchScore)
+        };
+
+        jobs = await query
+            .Skip((currentPage - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync();
+
+        loading = false;
+    }
+
+    private async Task SetSort(string column)
+    {
+        if (sortColumn == column)
+        {
+            sortDescending = !sortDescending;
+        }
+        else
+        {
+            sortColumn = column;
+            sortDescending = true;
+        }
+
+        currentPage = 1;
+        await LoadJobs();
+    }
+
+    private MarkupString SortArrow(string column)
+    {
+        if (sortColumn != column) return new MarkupString("");
+        var arrow = sortDescending ? "▾" : "▴";
+        return new MarkupString($"<span class=\"sort-arrow\">{arrow}</span>");
+    }
+
+    private async Task ApplyFilters()
+    {
+        currentPage = 1;
+        await LoadJobs();
+    }
+
+    private async Task PrevPage()
+    {
+        if (currentPage > 1)
+        {
+            currentPage--;
+            await LoadJobs();
+        }
+    }
+
+    private async Task NextPage()
+    {
+        if (currentPage < totalPages)
+        {
+            currentPage++;
+            await LoadJobs();
+        }
+    }
+
+    private async Task UpdateStatus(SavedJob job, string? newStatus)
+    {
+        job.Status = newStatus;
+        await Db.SaveChangesAsync();
+        await LoadStats();
+    }
+}

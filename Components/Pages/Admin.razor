@@ -1,0 +1,403 @@
+@page "/admin"
+@using JobAggregatorApi.Data
+@using JobAggregatorApi.Models
+@using JobAggregatorApi.Services
+@using JobAggregatorApi.Services.Scoring
+@using Microsoft.EntityFrameworkCore
+@inject IConfiguration Config
+@inject JobAggregatorService Aggregator
+@inject JobStorageService Storage
+@inject JobDbContext Db
+@rendermode InteractiveServer
+
+<style>
+    @@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+    .admin-page {
+        font-family: 'DM Sans', sans-serif;
+        background: #0f1117;
+        color: #e2e4e9;
+        min-height: 100vh;
+        padding: 32px 40px;
+    }
+
+    .admin-page h1 {
+        font-size: 28px;
+        font-weight: 700;
+        color: #f8f9fa;
+        letter-spacing: -0.5px;
+        margin: 0 0 32px 0;
+    }
+
+    .login-box {
+        max-width: 360px;
+        margin: 120px auto;
+        background: #1a1d27;
+        border: 1px solid #2a2d3a;
+        border-radius: 12px;
+        padding: 32px;
+        text-align: center;
+    }
+
+    .login-box h2 {
+        font-size: 20px;
+        font-weight: 600;
+        color: #f8f9fa;
+        margin: 0 0 24px 0;
+    }
+
+    .login-input {
+        width: 100%;
+        background: #0f1117;
+        border: 1px solid #2a2d3a;
+        color: #e2e4e9;
+        padding: 12px 14px;
+        border-radius: 8px;
+        font-size: 14px;
+        font-family: 'DM Sans', sans-serif;
+        outline: none;
+        margin-bottom: 16px;
+        box-sizing: border-box;
+        transition: border-color 0.2s;
+    }
+
+    .login-input:focus {
+        border-color: #3b82f6;
+    }
+
+    .login-error {
+        color: #fca5a5;
+        font-size: 13px;
+        margin-bottom: 12px;
+    }
+
+    .btn {
+        background: #3b82f6;
+        color: white;
+        border: none;
+        padding: 10px 20px;
+        border-radius: 8px;
+        font-size: 13px;
+        font-weight: 600;
+        font-family: 'DM Sans', sans-serif;
+        cursor: pointer;
+        transition: background 0.2s;
+        width: 100%;
+    }
+
+    .btn:hover:not(:disabled) {
+        background: #2563eb;
+    }
+
+    .btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+
+    .btn-green {
+        background: #065f46;
+    }
+
+    .btn-green:hover:not(:disabled) {
+        background: #047857;
+    }
+
+    .btn-amber {
+        background: #92400e;
+    }
+
+    .btn-amber:hover:not(:disabled) {
+        background: #b45309;
+    }
+
+    .btn-red {
+        background: #7f1d1d;
+    }
+
+    .btn-red:hover:not(:disabled) {
+        background: #991b1b;
+    }
+
+    .action-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 20px;
+        max-width: 800px;
+    }
+
+    .action-card {
+        background: #1a1d27;
+        border: 1px solid #2a2d3a;
+        border-radius: 10px;
+        padding: 24px;
+    }
+
+    .action-card h3 {
+        font-size: 16px;
+        font-weight: 600;
+        color: #f8f9fa;
+        margin: 0 0 8px 0;
+    }
+
+    .action-card p {
+        font-size: 13px;
+        color: #6b7280;
+        margin: 0 0 16px 0;
+        line-height: 1.5;
+    }
+
+    .action-card .btn {
+        width: auto;
+    }
+
+    .log-box {
+        margin-top: 32px;
+        background: #1a1d27;
+        border: 1px solid #2a2d3a;
+        border-radius: 10px;
+        padding: 20px;
+        max-width: 800px;
+    }
+
+    .log-box h3 {
+        font-size: 14px;
+        font-weight: 600;
+        color: #f8f9fa;
+        margin: 0 0 12px 0;
+    }
+
+    .log-entry {
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 12px;
+        color: #9ca3af;
+        padding: 4px 0;
+        border-bottom: 1px solid #1f2233;
+    }
+
+    .log-entry.success {
+        color: #6ee7b7;
+    }
+
+    .log-entry.error {
+        color: #fca5a5;
+    }
+
+    .log-entry.info {
+        color: #7dd3fc;
+    }
+</style>
+
+<div class="admin-page">
+    @if (!authenticated)
+    {
+        <div class="login-box">
+            <h2>Admin Access</h2>
+            @if (loginError)
+            {
+                <div class="login-error">Invalid password</div>
+            }
+            <input type="password" class="login-input" placeholder="Enter password" @bind="passwordInput"
+                   @bind:event="oninput" @onkeydown="HandleKeyDown" />
+            <button class="btn" @onclick="Login">Unlock</button>
+        </div>
+    }
+    else
+    {
+        <h1>Admin Panel</h1>
+
+        <div class="action-grid">
+            <div class="action-card">
+                <h3>Profile Search</h3>
+                <p>Run the Senior .NET Engineer profile search across all sources, deduplicate, and save new jobs.</p>
+                <button class="btn btn-green" disabled="@running" @onclick="RunProfileSearch">
+                    @(running ? "Running..." : "Run Profile Search")
+                </button>
+            </div>
+
+            <div class="action-card">
+                <h3>Score Jobs</h3>
+                <p>Score all unscored .NET/C# jobs with AI. Only new jobs that haven't been scored will be processed.</p>
+                <button class="btn btn-amber" disabled="@running" @onclick="RunScoring">
+                    @(running ? "Scoring..." : "Score Unscored Jobs")
+                </button>
+            </div>
+
+            <div class="action-card">
+                <h3>Search + Score</h3>
+                <p>Run the full pipeline: search all sources, save new jobs, then score relevant ones with AI.</p>
+                <button class="btn" disabled="@running" @onclick="RunFullPipeline">
+                    @(running ? "Running..." : "Run Full Pipeline")
+                </button>
+            </div>
+
+            <div class="action-card">
+                <h3>Purge Old Jobs</h3>
+                <p>Delete saved jobs posted more than 60 days ago to keep the database clean.</p>
+                <button class="btn btn-red" disabled="@running" @onclick="PurgeOldJobs">
+                    @(running ? "Purging..." : "Purge Old Jobs")
+                </button>
+            </div>
+        </div>
+
+        @if (logEntries.Any())
+        {
+            <div class="log-box">
+                <h3>Activity Log</h3>
+                @foreach (var entry in logEntries)
+                {
+                    <div class="log-entry @entry.Level">@entry.Timestamp.ToString("HH:mm:ss") &mdash; @entry.Message</div>
+                }
+            </div>
+        }
+    }
+</div>
+
+@code {
+    private bool authenticated;
+    private string passwordInput = "";
+    private bool loginError;
+    private bool running;
+
+    private List<LogEntry> logEntries = new();
+
+    private record LogEntry(DateTime Timestamp, string Message, string Level);
+
+    private void Login()
+    {
+        var expected = Config["Admin:Password"];
+        if (passwordInput == expected)
+        {
+            authenticated = true;
+            loginError = false;
+        }
+        else
+        {
+            loginError = true;
+        }
+    }
+
+    private async Task HandleKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            Login();
+        }
+    }
+
+    private void Log(string message, string level = "info")
+    {
+        logEntries.Insert(0, new LogEntry(DateTime.Now, message, level));
+        StateHasChanged();
+    }
+
+    private async Task RunProfileSearch()
+    {
+        running = true;
+        Log("Starting profile search...");
+
+        try
+        {
+            var queries = SearchProfiles.SeniorDotNetEngineer();
+            var allResults = new List<JobListing>();
+
+            foreach (var query in queries)
+            {
+                var results = await Aggregator.SearchAllAsync(query);
+                allResults.AddRange(results);
+                Log($"Searched '{query.Keywords}' in '{query.Location}': {results.Count} results");
+            }
+
+            var deduplicated = JobDeduplicator.Deduplicate(allResults);
+            Log($"Deduplicated: {allResults.Count} raw -> {deduplicated.Count} unique");
+
+            var newJobs = await Storage.SaveJobsAsync(deduplicated);
+            Log($"Saved {newJobs} new jobs", "success");
+        }
+        catch (Exception ex)
+        {
+            Log($"Error: {ex.Message}", "error");
+        }
+
+        running = false;
+    }
+
+    private async Task RunScoring()
+    {
+        running = true;
+        Log("Starting AI scoring...");
+
+        try
+        {
+            var scored = await Storage.ScoreUnscoredJobsAsync();
+            Log($"Scored {scored} jobs", "success");
+        }
+        catch (Exception ex)
+        {
+            Log($"Error: {ex.Message}", "error");
+        }
+
+        running = false;
+    }
+
+    private async Task RunFullPipeline()
+    {
+        running = true;
+        Log("Starting full pipeline...");
+
+        try
+        {
+            var queries = SearchProfiles.SeniorDotNetEngineer();
+            var allResults = new List<JobListing>();
+
+            foreach (var query in queries)
+            {
+                var results = await Aggregator.SearchAllAsync(query);
+                allResults.AddRange(results);
+            }
+
+            Log($"Fetched {allResults.Count} total results from all sources");
+
+            var deduplicated = JobDeduplicator.Deduplicate(allResults);
+            Log($"After dedup: {deduplicated.Count} unique jobs");
+
+            var newJobs = await Storage.SaveJobsAsync(deduplicated);
+            Log($"Saved {newJobs} new jobs");
+
+            var scored = await Storage.ScoreUnscoredJobsAsync();
+            Log($"Scored {scored} jobs with AI", "success");
+
+            Log("Full pipeline complete", "success");
+        }
+        catch (Exception ex)
+        {
+            Log($"Error: {ex.Message}", "error");
+        }
+
+        running = false;
+    }
+
+    private async Task PurgeOldJobs()
+    {
+        running = true;
+        Log("Purging old jobs...");
+
+        try
+        {
+            var cutoff = DateTime.UtcNow.AddDays(-60);
+            var oldJobs = await Db.SavedJobs
+                .Where(j => j.PostedDate < cutoff)
+                .ToListAsync();
+
+            Db.SavedJobs.RemoveRange(oldJobs);
+            await Db.SaveChangesAsync();
+
+            Log($"Purged {oldJobs.Count} jobs older than 60 days", "success");
+        }
+        catch (Exception ex)
+        {
+            Log($"Error: {ex.Message}", "error");
+        }
+
+        running = false;
+    }
+}

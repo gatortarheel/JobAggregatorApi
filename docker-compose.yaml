@@ -1,0 +1,18 @@
+services:
+  jobapi:
+    build: .
+    ports:
+      - "5004:8080"
+    volumes:
+      - jobdata:/app/data
+    environment:
+      - Adzuna__AppId=your_id_here
+      - Adzuna__AppKey=your_key_here
+      - UsaJobs__ApiKey=your_key_here
+      - UsaJobs__Email=your_email_here
+      - Jooble__ApiKey=your_key_here
+      - Anthropic__ApiKey=your_key_here
+      - Admin__Password=your_password_here
+
+volumes:
+  jobdata:
