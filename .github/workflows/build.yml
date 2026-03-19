@@ -28,12 +28,27 @@ jobs:
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      - name: Disable Kudu build
-        run: az webapp config appsettings set --name job-aggregator-app --resource-group job-aggregator-rg --settings SCM_DO_BUILD_DURING_DEPLOYMENT=false
-
-      - name: Set Startup Command
+      - name: Configure Azure App Service
         run: |
-          az webapp config set --resource-group job-aggregator-rg --name job-aggregator-app --startup-file "dotnet JobAggregatorApi.dll"
+          # 1. Disable Kudu build (since we are deploying a pre-built zip)
+          # 2. Set the persistent SQLite path in /home/
+          az webapp config appsettings set \
+            --name job-aggregator-app \
+            --resource-group job-aggregator-rg \
+            --settings SCM_DO_BUILD_DURING_DEPLOYMENT=false \
+            ConnectionStrings__DefaultConnection="Data Source=/home/job-aggregator.db"
+
+          # 3. Explicitly set the Startup Command for the Linux container
+          az webapp config set \
+            --name job-aggregator-app \
+            --resource-group job-aggregator-rg \
+            --startup-file "dotnet JobAggregatorApi.dll"
 
       - name: Deploy to Azure
-        run: az webapp deploy --name job-aggregator-app --resource-group job-aggregator-rg --src-path deploy.zip --type zip --clean true
+        run: |
+          az webapp deploy \
+            --name job-aggregator-app \
+            --resource-group job-aggregator-rg \
+            --src-path deploy.zip \
+            --type zip \
+            --clean true
