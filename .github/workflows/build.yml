@@ -16,13 +16,10 @@ jobs:
           dotnet-version: '9.0.x'
 
       - name: Publish
-        # Adding --runtime linux-x64 ensures we only include Linux-compatible binaries, 
-        # eliminating the 'Invalid argument (22)' errors during rsync.
-        run: dotnet publish JobAggregatorApi.csproj -c Release -o ./output --runtime linux-x64 --self-contained false
+        # -r linux-x64 prevents the creation of the problematic 'runtimes' folders
+        run: dotnet publish JobAggregatorApi.csproj -c Release -o ./output -r linux-x64 --self-contained false
 
-      - name: Create Deployment Package
-        # cd into the directory first to ensure the zip root is the application root.
-        # This prevents nested 'output/wwwroot' structures that cause 404s.
+      - name: Zip Package
         run: |
           cd output
           zip -r ../deploy.zip .
@@ -32,22 +29,29 @@ jobs:
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      - name: Configure Azure App Service
+      - name: Clean Remote Directory
+        # This deletes the broken 'backslash' files that are blocking rsync
         run: |
-          # Disable Kudu's internal build engine to use our pre-built zip.
-          # Set the persistent SQLite path and the explicit Startup Command.
+          az webapp ssh command \
+            --name job-aggregator-app \
+            --resource-group job-aggregator-rg \
+            --command "rm -rf /home/site/wwwroot/*" || true
+
+      - name: Configure App Settings
+        run: |
           az webapp config appsettings set \
             --name job-aggregator-app \
             --resource-group job-aggregator-rg \
-            --settings SCM_DO_BUILD_DURING_DEPLOYMENT=false \
-            ConnectionStrings__DefaultConnection="Data Source=/home/job-aggregator.db"
+            --settings \
+              SCM_DO_BUILD_DURING_DEPLOYMENT=false \
+              ConnectionStrings__DefaultConnection="Data Source=/home/job-aggregator.db"
 
           az webapp config set \
             --name job-aggregator-app \
             --resource-group job-aggregator-rg \
             --startup-file "dotnet JobAggregatorApi.dll"
 
-      - name: Deploy to Azure Web App
+      - name: Deploy to Azure
         uses: azure/webapps-deploy@v3
         with:
           app-name: 'job-aggregator-app'
