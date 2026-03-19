@@ -16,9 +16,13 @@ jobs:
           dotnet-version: '9.0.x'
 
       - name: Publish
-        run: dotnet publish JobAggregatorApi.csproj -c Release -o ./output
+        # Adding --runtime linux-x64 ensures we only include Linux-compatible binaries, 
+        # eliminating the 'Invalid argument (22)' errors during rsync.
+        run: dotnet publish JobAggregatorApi.csproj -c Release -o ./output --runtime linux-x64 --self-contained false
 
-      - name: Create zip
+      - name: Create Deployment Package
+        # cd into the directory first to ensure the zip root is the application root.
+        # This prevents nested 'output/wwwroot' structures that cause 404s.
         run: |
           cd output
           zip -r ../deploy.zip .
@@ -30,25 +34,21 @@ jobs:
 
       - name: Configure Azure App Service
         run: |
-          # 1. Disable Kudu build (since we are deploying a pre-built zip)
-          # 2. Set the persistent SQLite path in /home/
+          # Disable Kudu's internal build engine to use our pre-built zip.
+          # Set the persistent SQLite path and the explicit Startup Command.
           az webapp config appsettings set \
             --name job-aggregator-app \
             --resource-group job-aggregator-rg \
             --settings SCM_DO_BUILD_DURING_DEPLOYMENT=false \
             ConnectionStrings__DefaultConnection="Data Source=/home/job-aggregator.db"
 
-          # 3. Explicitly set the Startup Command for the Linux container
           az webapp config set \
             --name job-aggregator-app \
             --resource-group job-aggregator-rg \
             --startup-file "dotnet JobAggregatorApi.dll"
 
-      - name: Deploy to Azure
-        run: |
-          az webapp deploy \
-            --name job-aggregator-app \
-            --resource-group job-aggregator-rg \
-            --src-path deploy.zip \
-            --type zip \
-            --clean true
+      - name: Deploy to Azure Web App
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: 'job-aggregator-app'
+          package: 'deploy.zip'
