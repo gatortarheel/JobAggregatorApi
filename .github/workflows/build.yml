@@ -31,5 +31,9 @@ jobs:
       - name: Disable Kudu build
         run: az webapp config appsettings set --name job-aggregator-app --resource-group job-aggregator-rg --settings SCM_DO_BUILD_DURING_DEPLOYMENT=false
 
+      - name: Set Startup Command
+        run: |
+          az webapp config set --resource-group job-aggregator-rg --name job-aggregator-app --startup-file "dotnet JobAggregatorApi.dll"
+
       - name: Deploy to Azure
         run: az webapp deploy --name job-aggregator-app --resource-group job-aggregator-rg --src-path deploy.zip --type zip --clean true
