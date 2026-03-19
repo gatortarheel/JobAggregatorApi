@@ -25,6 +25,6 @@ jobs:
 
       - name: Deploy to Azure
         run: |
-          cd publish
-          zip -r ../deploy.zip .
-          az webapp deploy --name job-aggregator-app --resource-group job-aggregator-rg --src-path ../deploy.zip --type zip
+             cd publish
+             zip -r ../deploy.zip .
+             az webapp deployment source config-zip --name job-aggregator-app --resource-group job-aggregator-rg --src ../deploy.zip
